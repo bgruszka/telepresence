@@ -263,7 +263,7 @@ func (f *tcp) rerouteConn(ctx context.Context, conn net.Conn, clientSession tunn
 	return nil
 }
 
-// forwardHTTPConn handles HTTP-aware connection forwarding with header/path filtering
+// forwardHTTPConn handles HTTP-aware connection forwarding with header/path filtering.
 func (f *tcp) forwardHTTPConn(ctx context.Context, clientConn net.Conn, intercept *manager.InterceptInfo, originalHost string, originalPort uint16, wtIntercepts []*manager.InterceptInfo) error {
 	// Create a temporary HTTP interceptor to handle this connection
 	httpInterceptor := &httpInterceptor{

@@ -329,7 +329,7 @@ func (h *httpInterceptor) forwardToOriginalService(ctx context.Context, clientCo
 	return nil
 }
 
-// httpPrefixConn wraps a connection and prefixes reads with HTTP request data
+// httpPrefixConn wraps a connection and prefixes reads with HTTP request data.
 type httpPrefixConn struct {
 	net.Conn
 	prefix     []byte
