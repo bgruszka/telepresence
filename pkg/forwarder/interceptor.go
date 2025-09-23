@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/netip"
 	"sync"
 
@@ -28,6 +29,12 @@ type Interceptor interface {
 	WiretapIDs() []string
 	HasWiretap(id string) bool
 	RemoveWiretap(id string)
+
+	// DispatchByMechanism gives the interceptor a chance to handle a connection
+	// using any mechanism-specific behavior (e.g., HTTP-aware handling). It
+	// returns true if the connection was fully handled and no further processing
+	// should occur.
+	DispatchByMechanism(ctx context.Context, conn net.Conn, intercept *manager.InterceptInfo) (bool, error)
 }
 
 type interceptor struct {
@@ -57,18 +64,6 @@ func NewInterceptor(from types.PortAndProto, tag tunnel.Tag, targetHost string, 
 	default:
 		panic(fmt.Errorf("unsupported protocol %s", from.Proto))
 	}
-}
-
-// NewInterceptorWithMechanism creates an interceptor with mechanism-specific behavior.
-// For HTTP mechanism, it creates an HTTP-aware interceptor that can filter by headers/paths.
-func NewInterceptorWithMechanism(from types.PortAndProto, tag tunnel.Tag, targetHost string, targetPort uint16, mechanism string) Interceptor {
-	// For HTTP mechanism, use HTTP interceptor regardless of protocol (since HTTP runs over TCP)
-	if mechanism == "http" {
-		return newHTTP(from.Port, tag, targetHost, targetPort)
-	}
-
-	// Fall back to protocol-based selection for non-HTTP mechanisms
-	return NewInterceptor(from, tag, targetHost, targetPort)
 }
 
 func (f *interceptor) SetStreamProvider(streamProvider tunnel.ClientStreamProvider) {

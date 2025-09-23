@@ -119,9 +119,9 @@ func (f *tcp) forwardConn(clientConn net.Conn) error {
 	}
 	f.mu.Unlock()
 
-	// Delegate to HTTP handling if the intercept uses HTTP mechanism
-	if intercept != nil && intercept.Spec != nil && intercept.Spec.HttpMechanism {
-		return f.forwardHTTPConn(ctx, clientConn, intercept, targetHost, targetPort, wtIntercepts)
+	// Give mechanism-specific handling a chance first (e.g., HTTP-aware routing)
+	if handled, err := f.DispatchByMechanism(ctx, clientConn, intercept); handled || err != nil {
+		return err
 	}
 
 	ctx = dlog.WithField(ctx, "client", clientConn.RemoteAddr().String())
@@ -288,4 +288,37 @@ func (f *tcp) forwardHTTPConn(ctx context.Context, clientConn net.Conn, intercep
 
 	// Handle the connection using HTTP logic
 	return httpInterceptor.handleHTTPConn(clientConn)
+}
+
+// DispatchByMechanism implements mechanism-specific per-connection dispatch for TCP.
+// It currently routes HTTP-aware intercepts when requested.
+func (f *tcp) DispatchByMechanism(ctx context.Context, clientConn net.Conn, intercept *manager.InterceptInfo) (bool, error) {
+	var spec *manager.InterceptSpec
+	if intercept != nil {
+		spec = intercept.Spec
+	}
+
+	switch {
+	case spec != nil && spec.HttpMechanism:
+		// Collect wiretaps under lock to maintain existing behavior
+		f.mu.Lock()
+		targetHost := f.targetHost
+		targetPort := f.targetPort
+		tapCount := len(f.wiretaps)
+		var wtIntercepts []*manager.InterceptInfo
+		if tapCount > 0 {
+			wtIntercepts = make([]*manager.InterceptInfo, tapCount)
+			i := 0
+			for _, wt := range f.wiretaps {
+				wtIntercepts[i] = wt
+				i++
+			}
+		}
+		f.mu.Unlock()
+
+		err := f.forwardHTTPConn(ctx, clientConn, intercept, targetHost, targetPort, wtIntercepts)
+		return true, err
+	default:
+		return false, nil
+	}
 }
