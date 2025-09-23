@@ -119,6 +119,11 @@ func (f *tcp) forwardConn(clientConn net.Conn) error {
 	}
 	f.mu.Unlock()
 
+	// Delegate to HTTP handling if the intercept uses HTTP mechanism
+	if intercept != nil && intercept.Spec != nil && intercept.Spec.HttpMechanism {
+		return f.forwardHTTPConn(ctx, clientConn, intercept, targetHost, targetPort, wtIntercepts)
+	}
+
 	ctx = dlog.WithField(ctx, "client", clientConn.RemoteAddr().String())
 
 	var targetAddr *net.TCPAddr
@@ -256,4 +261,31 @@ func (f *tcp) rerouteConn(ctx context.Context, conn net.Conn, clientSession tunn
 		EgressBytes:     egressBytes.GetValue(),
 	})
 	return nil
+}
+
+// forwardHTTPConn handles HTTP-aware connection forwarding with header/path filtering
+func (f *tcp) forwardHTTPConn(ctx context.Context, clientConn net.Conn, intercept *manager.InterceptInfo, originalHost string, originalPort uint16, wtIntercepts []*manager.InterceptInfo) error {
+	// Create a temporary HTTP interceptor to handle this connection
+	httpInterceptor := &httpInterceptor{
+		interceptor: interceptor{
+			tag:        f.tag,
+			targetHost: f.targetHost,
+			targetPort: f.targetPort,
+			tCtx:       ctx,
+		},
+		originalHost: originalHost,
+		originalPort: originalPort,
+	}
+
+	// Configure the HTTP interceptor with stream provider and intercept info
+	httpInterceptor.SetStreamProvider(f.streamProvider)
+	httpInterceptor.SetIntercepting(ctx, intercept)
+
+	// Add wiretaps if any
+	for _, wt := range wtIntercepts {
+		httpInterceptor.AddWiretap(wt)
+	}
+
+	// Handle the connection using HTTP logic
+	return httpInterceptor.handleHTTPConn(clientConn)
 }

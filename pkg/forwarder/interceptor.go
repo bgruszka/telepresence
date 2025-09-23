@@ -59,6 +59,18 @@ func NewInterceptor(from types.PortAndProto, tag tunnel.Tag, targetHost string, 
 	}
 }
 
+// NewInterceptorWithMechanism creates an interceptor with mechanism-specific behavior.
+// For HTTP mechanism, it creates an HTTP-aware interceptor that can filter by headers/paths.
+func NewInterceptorWithMechanism(from types.PortAndProto, tag tunnel.Tag, targetHost string, targetPort uint16, mechanism string) Interceptor {
+	// For HTTP mechanism, use HTTP interceptor regardless of protocol (since HTTP runs over TCP)
+	if mechanism == "http" {
+		return newHTTP(from.Port, tag, targetHost, targetPort)
+	}
+
+	// Fall back to protocol-based selection for non-HTTP mechanisms
+	return NewInterceptor(from, tag, targetHost, targetPort)
+}
+
 func (f *interceptor) SetStreamProvider(streamProvider tunnel.ClientStreamProvider) {
 	f.mu.Lock()
 	f.streamProvider = streamProvider
