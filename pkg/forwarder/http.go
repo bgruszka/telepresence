@@ -332,9 +332,9 @@ func (h *httpInterceptor) forwardToOriginalService(ctx context.Context, clientCo
 // httpPrefixConn wraps a connection and prefixes reads with HTTP request data
 type httpPrefixConn struct {
 	net.Conn
-	prefix   []byte
+	prefix     []byte
 	prefixRead bool
-	mu       sync.Mutex
+	mu         sync.Mutex
 }
 
 func (c *httpPrefixConn) Read(b []byte) (n int, err error) {
@@ -352,4 +352,11 @@ func (c *httpPrefixConn) Read(b []byte) (n int, err error) {
 	}
 
 	return c.Conn.Read(b)
+}
+
+// DispatchByMechanism is a no-op for the HTTP interceptor since it already represents
+// the mechanism-specific interceptor. It returns false to indicate the caller should
+// continue with its normal handling.
+func (h *httpInterceptor) DispatchByMechanism(_ context.Context, _ net.Conn, _ *manager.InterceptInfo) (bool, error) {
+	return false, nil
 }
